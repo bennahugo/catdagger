@@ -5,3 +5,4 @@
 *.FITS
 dist/
 *.egg-info
+*.swp
