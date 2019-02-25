@@ -29,10 +29,15 @@ requirements = ['numpy',
                 'astropy',
                 'scipy',
                 'astro-tigger-lsm']
+def readme():
+    with open("README.rst") as f:
+        desc = f.read()
+    return desc
 
 setup(name='catdagger',
-      version='0.1.0',
+      version='0.1.1',
       description='An automatic differential gain catalog tagger',
+      long_description=readme(),
       url='https://github.com/bennahugo/catdagger',
       classifiers=[
         "Development Status :: 3 - Alpha",
