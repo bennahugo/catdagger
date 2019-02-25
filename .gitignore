@@ -1,0 +1,7 @@
+*.pyc
+*.reg
+*.lsm.html
+*.fits
+*.FITS
+dist/
+*.egg-info

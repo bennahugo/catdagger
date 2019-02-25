@@ -1,0 +1,2 @@
+recursive-include catdagger/ *.py
+recursive-include bin/
