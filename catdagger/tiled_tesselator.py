@@ -8,7 +8,8 @@ import scipy.signal as ssig
 import scipy.spatial as spat
 import Tigger
 from catdagger import logger
-from catdagger.filters import within_radius_from, notin
+from catdagger.filters import within_radius_from, \
+    notin, arealess, skewness_more, pos2neg_more
 from catdagger.geometry import BoundingBox, BoundingConvexHull, merge_regions
 from catdagger.fits_tools import FitsStokesTypes
 log = logger.getLogger("tiled_tesselator")
@@ -22,7 +23,10 @@ def tag_regions(stokes_cube,
                 global_stat_percentile=30.0,
                 min_blocks_in_region = 3,
                 min_distance_from_centre = 0,
-                exclusion_zones=[]):
+                exclusion_zones=[],
+                max_right_skewness=np.inf,
+                max_abs_skewness=np.inf,
+                max_positive_to_negative_flux=np.inf):
     """
         Tiled tesselator
 
@@ -66,7 +70,7 @@ def tag_regions(stokes_cube,
         reg_name = "reg[{0:d},{1:d}]".format(x, y)
         tagged_regions.append(BoundingBox(bin_lower[x], bin_upper[x], 
                                           bin_lower[y], bin_upper[y], 
-                                          det, reg_name, w, cube))
+                                          det, reg_name, w, band_avg))
     
     if min_distance_from_centre > 0:
         print>>log, "Enforsing radial exclusion zone of {0:.2f} px form " \
@@ -83,9 +87,27 @@ def tag_regions(stokes_cube,
                                 tagged_regions)
 
     print>>log, "Merging regions" 
-    tagged_regions = [i for i in merge_regions(tagged_regions, 
-                                               min_area=min_blocks_in_region * block_size**2, 
+    tagged_regions = [i for i in merge_regions(tagged_regions,  
                                                exclusion_zones=exclusion_zones)] 
+    # apply regional filters
+    print>>log, "Culling regions based on filtering criteria:"
+    min_area=min_blocks_in_region * block_size**2
+    tagged_regions = filter(notin(filter(arealess(min_area=min_area), 
+                                         tagged_regions)), 
+                            tagged_regions)
+    tagged_regions = filter(notin(filter(skewness_more(max_skewness=max_right_skewness,
+                                                      absskew=False), 
+                                         tagged_regions)),
+                            tagged_regions)
+    tagged_regions = filter(notin(filter(skewness_more(max_skewness=max_abs_skewness,
+                                                       absskew=True), 
+                                         tagged_regions)),
+                            tagged_regions)
+    tagged_regions = filter(notin(filter(pos2neg_more(max_positive_to_negative_flux), 
+                                         tagged_regions)),
+                            tagged_regions)
+
+    # finally we're done
     with open(regionsfn, "w+") as f:
         f.write("# Region file format: DS9 version 4.0\n")
         f.write("global color=red font=\"helvetica 6 normal roman\" edit=1 move=1 delete=1 highlite=1 include=1 wcs=wcs\n")

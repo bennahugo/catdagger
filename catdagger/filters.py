@@ -38,6 +38,38 @@ class arealess():
             return True
         return False
 
+class skewness_more():
+    def __init__(self, max_skewness=0, absskew=False):
+        """ Absolute skewness """
+        self._mskew = max_skewness
+        self._abs = absskew
+
+    def __call__(self, reg):
+        skew = sstats.skew(np.array(reg.regional_data).flatten())
+        modskew = np.abs(np.log10(np.abs(skew)))
+        if not self._abs: modskew *= np.sign(skew)
+        if modskew > self._mskew:
+            print>>log, "\t - Discarding region {0:s} because of its {1:s} skewness. " \
+                        "The region likely contains significant unmodelled emission".format(
+                            reg.name, "absolute" if self._abs else "right")
+            return True
+        return False
+
+class pos2neg_more():
+    def __init__(self, max_positive_to_negative=1.5):
+        """ Absolute skewness """
+        self._maxrat = max_positive_to_negative
+
+    def __call__(self, reg):
+        img = reg.regional_data
+        pos2neg = np.sum(img > 0) / float(np.sum(img <= 0))
+        if pos2neg > self._maxrat:
+            print>>log, "\t - Discarding region {0:s} because of its large amount of positive flux. " \
+                        "The region likely contains significant unmodelled emission".format(reg.name)
+            return True
+        return False
+
+
 class notin():
     def __init__(self, discard_list):
         self._dl = set(discard_list)

@@ -30,6 +30,8 @@ from catdagger import logger
 from catdagger.filters import arealess, notin, within_radius_from
 log = logger.getLogger("geometry")
 
+DEBUG = False
+
 class BoundingConvexHull():
     def __init__(self, list_hulls, sigma, name, wcs, imdata):
         self._wcs = wcs
@@ -46,15 +48,30 @@ class BoundingConvexHull():
 
     @property
     def regional_data(self):
-        pass
-        # lines = np.hstack([self.corners, np.roll(self.corners, -1, axis=0)])
-        # bounding_mesh = np.mgrid[np.min(lines[:, 0:4:2]):np.max(lines[:, 0:4:2]),
-        #                          np.min(lines[:, 1:4:2]):np.max(lines[:, 1:4:2])]
-        # return [self._data[region_mesh[np.logical_and(np.logical_and(region_mesh[0]>=min(x1, x2),
-        #                                                              region_mesh[0]<=max(x1, x2)),
-        #                                               np.logical_and(region_mesh[0]>=min(x1, x2),
-        #                                                              region_mesh[0]<=max(x1, x2)))]
-        #                    for x1,y1,x2,y2 in lines]]
+        """ 2D array containing all values within convex hull """
+        lines = np.hstack([self.corners, np.roll(self.corners, -1, axis=0)])
+        minx = np.min(lines[:, 0:4:2]); maxx = np.max(lines[:, 0:4:2])
+        miny = np.min(lines[:, 1:4:2]); maxy = np.max(lines[:, 1:4:2])
+        x = np.arange(minx, maxx, 1)
+        y = np.arange(miny, maxy, 1)
+        bounding_mesh = np.meshgrid(x, y)
+        # inverted mask
+        region_selected = np.zeros((y.shape[0], x.shape[0]), dtype=np.bool)
+        for x1, y1, x2, y2 in lines:
+            sel_indx = np.logical_and(np.logical_and(bounding_mesh[0]>=min(x1, x2),
+                                                     bounding_mesh[0]<=max(x1, x2)),
+                                      np.logical_and(bounding_mesh[1]>=min(y1, y2),
+                                                     bounding_mesh[1]<=max(y1, y2))) 
+            region_selected[sel_indx] = True
+        self._data[miny:maxy, minx:maxx][region_selected] = np.nan
+        if DEBUG:
+            from matplotlib import pyplot as plt
+            plt.figure
+            plt.imshow(self._data[miny:maxy, minx:maxx])
+            plt.show()
+        selected_data = self._data[miny:maxy, minx:maxx][np.logical_not(np.isnan(
+            self._data[miny:maxy, minx:maxx]))]
+        return selected_data
         
 
     @property
@@ -161,7 +178,7 @@ class BoundingBox(BoundingConvexHull):
                                     wcs,
                                     imdata)
 
-def merge_regions(regions, min_sep_distance=1.0e-4, min_area=0, exclusion_zones=[]):
+def merge_regions(regions, min_sep_distance=1.0e-4, exclusion_zones=[]):
     """ Merge neigbouring regions into convex hulls """
     for reg in regions:
         if not isinstance(reg, BoundingConvexHull):
@@ -197,6 +214,4 @@ def merge_regions(regions, min_sep_distance=1.0e-4, min_area=0, exclusion_zones=
                                                   imdata=me.global_data))
         regions = new_regions
 
-    # apply regional filters
-    regions = filter(notin(filter(arealess(min_area=min_area), regions)), regions)
     return regions

@@ -26,6 +26,7 @@ import argparse
 from catdagger import logger
 from catdagger.tiled_tesselator import tag_regions
 from catdagger.lsm_tools import tag_lsm
+import numpy as np
 import logging
 logging.getLogger("matplotlib").disabled=True
 logger.setGlobalVerbosity(["matplotlib=40"])
@@ -89,12 +90,34 @@ def main():
     parser.add_argument("--min-distance-from-tracking-centre",
                         type=int,
                         default=0,
-                        help="Cutoff distance from phase centre in which no tags be raised or statistics be computed. "
+                        help="Cutoff distance from phase centre in which no tags be raised."
                              "This can be used to effectively exclude the FWHM of an  parabolic reflector-based interferometer.")
     parser.add_argument("--add-custom-exclusion-zone",
                         type=exclusion_zone,
                         default=None,
-                        nargs="+")
+                        nargs="+",
+                        help="Add manual exclusion zone to which no dE tags shall be added. "
+                             "Expects a tripple of centre X, Y pixel and radius.")
+    parser.add_argument("--max-region-right-skewness",
+                        type=float,
+                        default=2,
+                        help="The maximum tolerance for right skewness of a pixel distribution within a region."
+                             "A large value (tailed distribution) indicates significant uncleaned flux remaining "
+                             "in the residual. This can be used to effectively control detection sensitivity "
+                             "to uncleaned extended emission, but should be set to 0 if residuals other than "
+                             "stokes I are used")
+    parser.add_argument("--max-positive-to-negative-flux",
+                        type=float,
+                        default=1.1,
+                        help="The maximum tolerance for the ratio of positive to negative flux. Only to be used with stokes I")
+    parser.add_argument("--max-region-abs-skewness",
+                        type=float,
+                        default=np.inf,
+                        help="The maximum tolerance for absolute skewness of a pixel distribution within a region."
+                             "A large value (tailed distribution) indicates significant uncleaned flux remaining "
+                             "in the residual. This can be used to effectively control detection sensitivity "
+                             "to uncleaned extended emission, but should be set to 0 if residuals other than "
+                             "stokes Q,U or V are used")
     args = parser.parse_args()
     import time
     tic = int(time.time())
@@ -109,7 +132,10 @@ def main():
                                  global_stat_percentile = args.global_rms_percentile,
                                  min_blocks_in_region = args.min_tiles_region,
                                  min_distance_from_centre = args.min_distance_from_tracking_centre,
-                                 exclusion_zones=exclusion_zones)
+                                 exclusion_zones=exclusion_zones,
+                                 max_right_skewness=args.max_region_right_skewness,
+                                 max_abs_skewness=args.max_region_abs_skewness,
+                                 max_positive_to_negative_flux=args.max_positive_to_negative_flux)
     if args.input_lsm is not None:
         tag_lsm(args.input_lsm,
                 args.noise_map,
