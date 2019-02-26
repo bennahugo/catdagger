@@ -11,7 +11,7 @@ from catdagger import logger
 from catdagger.filters import within_radius_from, \
     notin, arealess, skewness_more, pos2neg_more
 from catdagger.geometry import BoundingBox, BoundingConvexHull, merge_regions
-from catdagger.fits_tools import FitsStokesTypes
+from catdagger.fits_tools import FitsStokesTypes, read_stokes_slice, getcrpix
 log = logger.getLogger("tiled_tesselator")
 
 def tag_regions(stokes_cube,  
@@ -32,26 +32,9 @@ def tag_regions(stokes_cube,
 
         Method to tag regions with higher than sigma * percentile noise
     """
-    with fits.open(stokes_cube) as img:
-        cube = img[hdu_id].data
-        hdr = img[hdu_id].header
-        w = wcs.WCS(hdr)
-    types = {hdr["CTYPE{0:d}".format(ax + 1)]: (ax + 1) for ax in range(hdr["NAXIS"])}
-    if set(types.keys()) != set(["FREQ", "STOKES", "RA---SIN", "DEC--SIN"]):
-        raise TypeError("FITS must have FREQ, STOKES and RA and DEC ---SIN axes")
-    stokes_axis = np.arange(hdr["CRVAL{0:d}".format(types["STOKES"])] - hdr["CRPIX{0:d}".format(types["STOKES"])] * (hdr["CDELT{0:d}".format(types["STOKES"])] - 1),
-                            (hdr["NAXIS{0:d}".format(types["STOKES"])] + 1) * hdr["CDELT{0:d}".format(types["STOKES"])],
-                            hdr["CDELT{0:d}".format(types["STOKES"])])
-    reverse_stokes_map = {FitsStokesTypes[k]: k for k in FitsStokesTypes.keys()}
-    print>>log, "Stokes in the cube: {0:s}".format(",".join([reverse_stokes_map[s] for s in stokes_axis]))
-    sel_stokes = [reverse_stokes_map[s] for s in stokes_axis].index(use_stokes)
-    print>>log, "Stokes slice selected: {0:d} (Stokes {1:s})".format(sel_stokes, use_stokes)
-    sel_stokes = np.take(cube, sel_stokes, axis=(hdr["NAXIS"] - types["STOKES"]))
-    chan_axis = hdr["NAXIS"] - types["FREQ"] if types["FREQ"] > types["STOKES"] else hdr["NAXIS"] - types["FREQ"] - 1
-    print>>log, "Collapsing axis: {0:d}".format(types["FREQ"])
-    band_avg = np.mean(sel_stokes, axis=chan_axis)
-    bin_lower = np.arange(0, hdr["NAXIS{0:d}".format(types["RA---SIN"])], block_size)
-    bin_upper = np.clip(bin_lower + block_size, 0, hdr["NAXIS{0:d}".format(types["RA---SIN"])])
+    w, band_avg = read_stokes_slice(stokes_cube, hdu_id, use_stokes, average_channels=True)
+    bin_lower = np.arange(0, band_avg.shape[0], block_size)
+    bin_upper = np.clip(bin_lower + block_size, 0, band_avg.shape[0])
     assert bin_lower.shape == bin_upper.shape
     if band_avg.shape[0] != band_avg.shape[1]:
         raise TypeError("Image must be square!")
@@ -76,8 +59,9 @@ def tag_regions(stokes_cube,
     if min_distance_from_centre > 0:
         print>>log, "Enforsing radial exclusion zone of {0:.2f} px form " \
                     "phase tracking centre".format(min_distance_from_centre)
-        exclusion_zones.append((hdr["CRPIX{0:d}".format(types["RA---SIN"])],
-                                hdr["CRPIX{0:d}".format(types["DEC--SIN"])],
+        crra, crdec = getcrpix(fn, hdu_id, use_stokes)
+        exclusion_zones.append((crra,
+                                crdec,
                                 float(min_distance_from_centre)))
 
     # enforce all exclusion zones
@@ -86,12 +70,17 @@ def tag_regions(stokes_cube,
         tagged_regions = filter(notin(filter(within_radius_from(exclrad, cx, cy), 
                                              tagged_regions)), 
                                 tagged_regions)
-
+    if len(exclusion_zones) == 0: 
+        print>>log, "\t - No exclusion zones"
     print>>log, "Merging regions" 
+    prev_tagged_regions = copy.deepcopy(tagged_regions)
     tagged_regions = [i for i in merge_regions(tagged_regions,  
-                                               exclusion_zones=exclusion_zones)] 
+                                               exclusion_zones=exclusion_zones)]
+    if prev_tagged_regions == tagged_regions: 
+        print>>log, "\t - No mergers" 
     # apply regional filters
     print>>log, "Culling regions based on filtering criteria:"
+    prev_tagged_regions = copy.deepcopy(tagged_regions)
     min_area=min_blocks_in_region * block_size**2
     tagged_regions = filter(notin(filter(arealess(min_area=min_area), 
                                          tagged_regions)), 
@@ -107,7 +96,8 @@ def tag_regions(stokes_cube,
     tagged_regions = filter(notin(filter(pos2neg_more(max_positive_to_negative_flux), 
                                          tagged_regions)),
                             tagged_regions)
-
+    if prev_tagged_regions == tagged_regions: 
+        print>>log, "\t - No cullings"
     # finally we're done
     with open(regionsfn, "w+") as f:
         f.write("# Region file format: DS9 version 4.0\n")
