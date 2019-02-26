@@ -4,5 +4,7 @@
 *.fits
 *.FITS
 dist/
+build/
 *.egg-info
 *.swp
+*.json
