@@ -13,7 +13,7 @@ import ModColor
 _loggers = {}
 
 # global verbosity levels (used for loggers for which an explicit level is not set)
-_global_verbosity = 1
+_global_verbosity = 0
 _global_log_verbosity = None
 
 # this will be the handler for the log file

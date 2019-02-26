@@ -8,6 +8,7 @@ import scipy.signal as ssig
 import scipy.spatial as spat
 import Tigger
 from catdagger import logger
+from catdagger.filters import within_radius_from, notin
 from catdagger.geometry import BoundingBox, BoundingConvexHull, merge_regions
 from catdagger.fits_tools import FitsStokesTypes
 log = logger.getLogger("tiled_tesselator")
@@ -20,7 +21,8 @@ def tag_regions(stokes_cube,
                 use_stokes="I", 
                 global_stat_percentile=30.0,
                 min_blocks_in_region = 3,
-                min_distance_from_centre = 0):
+                min_distance_from_centre = 0,
+                exclusion_zones=[]):
     """
         Tiled tesselator
 
@@ -62,10 +64,28 @@ def tag_regions(stokes_cube,
     for (y, x) in np.argwhere(binned_stats > percentile_stat * sigma):
         det = binned_stats[y, x] / float(percentile_stat)
         reg_name = "reg[{0:d},{1:d}]".format(x, y)
-        tagged_regions.append(BoundingBox(bin_lower[x], bin_upper[x], bin_lower[y], bin_upper[y], det, reg_name, wcs=w))
+        tagged_regions.append(BoundingBox(bin_lower[x], bin_upper[x], 
+                                          bin_lower[y], bin_upper[y], 
+                                          det, reg_name, w, cube))
+    
+    if min_distance_from_centre > 0:
+        print>>log, "Enforsing radial exclusion zone of {0:.2f} px form " \
+                    "phase tracking centre".format(min_distance_from_centre)
+        exclusion_zones.append((hdr["CRPIX{0:d}".format(types["RA---SIN"])],
+                                hdr["CRPIX{0:d}".format(types["DEC--SIN"])],
+                                float(min_distance_from_centre)))
+
+    # enforce all exclusion zones
+    print>>log, "Enforsing exclusion zones:"
+    for (cx, cy, exclrad) in exclusion_zones:
+        tagged_regions = filter(notin(filter(within_radius_from(exclrad, cx, cy), 
+                                             tagged_regions)), 
+                                tagged_regions)
 
     print>>log, "Merging regions" 
-    tagged_regions = [i for i in merge_regions(tagged_regions, min_area=min_blocks_in_region * block_size**2)] 
+    tagged_regions = [i for i in merge_regions(tagged_regions, 
+                                               min_area=min_blocks_in_region * block_size**2, 
+                                               exclusion_zones=exclusion_zones)] 
     with open(regionsfn, "w+") as f:
         f.write("# Region file format: DS9 version 4.0\n")
         f.write("global color=red font=\"helvetica 6 normal roman\" edit=1 move=1 delete=1 highlite=1 include=1 wcs=wcs\n")

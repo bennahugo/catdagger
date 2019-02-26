@@ -26,7 +26,23 @@ import argparse
 from catdagger import logger
 from catdagger.tiled_tesselator import tag_regions
 from catdagger.lsm_tools import tag_lsm
+import logging
+logging.getLogger("matplotlib").disabled=True
+logger.setGlobalVerbosity(["matplotlib=40"])
 log = logger.getLogger("__main__")
+
+def exclusion_zone(val):
+    if not isinstance(val, str):
+        raise argparse.ArgumentTypeError("Exclusion zone must be of type string")
+    valtup = val.split(",") if isinstance(val, str) else tuple(val) if isinstance(val, list) else []
+
+    if len(valtup) != 3:
+        raise argparse.ArgumentTypeError("Exclusion zone must be a tripple like (cx, cy, radius)")
+    try:
+        cx = int(valtup[0]); cy = int(valtup[1]); exclrad = float(valtup[2])
+    except:
+        raise argparse.ArgumentTypeError("Exclusion zone must be a tripple like (int, int, float)")
+    return (cx, cy, exclrad)
 
 def main():
     parser = argparse.ArgumentParser("CATDagger - an automatic differential gain tagger (C) SARAO, Benjamin Hugo 2019")
@@ -75,7 +91,15 @@ def main():
                         default=0,
                         help="Cutoff distance from phase centre in which no tags be raised or statistics be computed. "
                              "This can be used to effectively exclude the FWHM of an  parabolic reflector-based interferometer.")
+    parser.add_argument("--add-custom-exclusion-zone",
+                        type=exclusion_zone,
+                        default=None,
+                        nargs="+")
     args = parser.parse_args()
+    import time
+    tic = int(time.time())
+    exclusion_zones = [exclz for exclz in args.add_custom_exclusion_zone] \
+        if args.add_custom_exclusion_zone is not None else []
     tagged_regions = tag_regions(args.noise_map,
                                  regionsfn = args.ds9_reg_file,
                                  sigma = args.sigma,
@@ -84,7 +108,8 @@ def main():
                                  use_stokes = args.stokes,
                                  global_stat_percentile = args.global_rms_percentile,
                                  min_blocks_in_region = args.min_tiles_region,
-                                 min_distance_from_centre = args.min_distance_from_tracking_centre)
+                                 min_distance_from_centre = args.min_distance_from_tracking_centre,
+                                 exclusion_zones=exclusion_zones)
     if args.input_lsm is not None:
         tag_lsm(args.input_lsm,
                 args.noise_map,
@@ -93,7 +118,8 @@ def main():
                 regionsfn = args.ds9_tag_reg_file,
                 taggedlsm_fn=args.input_lsm + ".de_tagged.lsm.html",
                 de_tag=args.de_tag_name)
-
+    toc = int(time.time())
+    print>>log, "CATDagger ran successfully in {0:.0f}:{1:02.0f} minutes".format((toc - tic) // 60,
+                                                                                 (toc - tic) % 60)
 if __name__ == "__main__":
     main()
-

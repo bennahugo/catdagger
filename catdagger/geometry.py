@@ -27,11 +27,13 @@ import scipy.spatial as spat
 import Tigger
 from astropy import wcs
 from catdagger import logger
+from catdagger.filters import arealess, notin, within_radius_from
 log = logger.getLogger("geometry")
 
 class BoundingConvexHull():
-    def __init__(self, list_hulls, sigma, name, wcs=None):
+    def __init__(self, list_hulls, sigma, name, wcs, imdata):
         self._wcs = wcs
+        self._data = imdata
         self._name = name
         self._vertices = points = np.vstack([b.corners
             if hasattr(b, "corners") else [b[0], b[1]] for b in list_hulls])
@@ -41,10 +43,25 @@ class BoundingConvexHull():
     def __str__(self):
         return "{0:.2f}x within region ".format(self._sigma) + \
                ",".join(["({0:d},{1:d})".format(x,y) for (x,y) in self.corners])
+
+    @property
+    def regional_data(self):
+        pass
+        # lines = np.hstack([self.corners, np.roll(self.corners, -1, axis=0)])
+        # bounding_mesh = np.mgrid[np.min(lines[:, 0:4:2]):np.max(lines[:, 0:4:2]),
+        #                          np.min(lines[:, 1:4:2]):np.max(lines[:, 1:4:2])]
+        # return [self._data[region_mesh[np.logical_and(np.logical_and(region_mesh[0]>=min(x1, x2),
+        #                                                              region_mesh[0]<=max(x1, x2)),
+        #                                               np.logical_and(region_mesh[0]>=min(x1, x2),
+        #                                                              region_mesh[0]<=max(x1, x2)))]
+        #                    for x1,y1,x2,y2 in lines]]
+        
+
     @property
     def area(self):
         lines = np.hstack([self.corners, np.roll(self.corners, -1, axis=0)])
         return 0.5 * np.abs(np.sum([x1*y2-x2*y1 for x1,y1,x2,y2 in lines]))
+
     @property
     def name(self):
         return self._name
@@ -56,6 +73,10 @@ class BoundingConvexHull():
     @property
     def wcs(self):
         return self._wcs
+
+    @property
+    def global_data(self):
+        return self._data.view()
 
     @property
     def corners(self):
@@ -114,7 +135,7 @@ class BoundingConvexHull():
     @property
     def centre(self):
         # Barycentre of polygon
-        return np.mean(self._vertices, axis=1)
+        return np.mean(self._vertices, axis=0)
 
     def __contains__(self, s):
         if not isinstance(s, Tigger.Models.SkyModel.Source):
@@ -132,28 +153,35 @@ class BoundingConvexHull():
         return np.abs(360 - np.rad2deg(dot)) < 1.0e-6
 
 class BoundingBox(BoundingConvexHull):
-    def __init__(self, xl, xu, yl, yu, sigma, name, wcs=None):
+    def __init__(self, xl, xu, yl, yu, sigma, name, wcs, imdata):
         BoundingConvexHull.__init__(self,
                                     [[xl,yl],[xl,yu],[xu,yu],[xu,yl]],
                                     sigma,
                                     name,
-                                    wcs)
+                                    wcs,
+                                    imdata)
 
-def merge_regions(regions, min_sep_distance=1.0e-4, min_area=0):
+def merge_regions(regions, min_sep_distance=1.0e-4, min_area=0, exclusion_zones=[]):
     """ Merge neigbouring regions into convex hulls """
     for reg in regions:
         if not isinstance(reg, BoundingConvexHull):
            raise TypeError("Expected BoundingConvexHull as argument")
+    wcss = set([reg.wcs for reg in regions])
+    if len(wcss) > 1:
+        raise ValueError("One or more regions with different WCS, can only merge " 
+                         "regions within the same WCS")
+    # assume global data is the same if wcs is the same
 
     merged = True
     orig_regs = len(regions)
     while merged:
         merged = False
         new_regions = []
+        # exclude areas previously merged within cycle or tiles in exclusion zones 
         exclude_list = []
         for me_i in range(len(regions)):
             me = regions[me_i]
-            if me in exclude_list: continue # already merged with another region
+            if me in exclude_list: continue # already merged/excluded
             nreg = [me]
             for other_i in range(me_i + 1, len(regions)):
                 other = regions[other_i]
@@ -165,13 +193,10 @@ def merge_regions(regions, min_sep_distance=1.0e-4, min_area=0):
             new_regions.append(BoundingConvexHull(nreg,
                                                   sigma=np.mean([reg.area_sigma for reg in nreg]),
                                                   name="&".join([reg.name for reg in nreg]),
-                                                  wcs=me.wcs))
+                                                  wcs=me.wcs,
+                                                  imdata=me.global_data))
         regions = new_regions
-    discard = []
-    for reg in regions:
-        if reg.area < min_area:
-            discard.append(reg)
-            print>>log, "\t - Discarding region {0:s} because of its small size".format(reg.name)
-    for reg in discard:
-        regions.remove(reg)
+
+    # apply regional filters
+    regions = filter(notin(filter(arealess(min_area=min_area), regions)), regions)
     return regions
