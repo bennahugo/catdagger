@@ -106,6 +106,15 @@ def main():
                              "in the residual. This can be used to effectively control detection sensitivity "
                              "to uncleaned extended emission, but should be set to 0 if residuals other than "
                              "stokes I are used")
+    parser.add_argument("--remove-tagged-dE-regions-from-model-images",
+                        type=list,
+                        help="Blank out model images within dE regions. Expect list of model FITS files. "
+                             "This option is useful for hybrid DFT-CLEAN component modelling.")
+    parser.add_argument("--only-dEs-in-lsm",
+                        action="store_true",
+                        help="Only store dE tagged sources in lsm. This option is useful for hybrid "
+                             "DFT-CLEAN component modelling, as only bright compact gaussian emission contributes "
+                             "to dE solutions")
     parser.add_argument("--max-positive-to-negative-flux",
                         type=float,
                         default=1.1,
@@ -143,7 +152,8 @@ def main():
                 hdu_id=0,
                 regionsfn = args.ds9_tag_reg_file,
                 taggedlsm_fn=args.input_lsm + ".de_tagged.lsm.html",
-                de_tag=args.de_tag_name)
+                de_tag=args.de_tag_name,
+                store_only_dEs=args.only_dEs_in_lsm)
     toc = int(time.time())
     print>>log, "CATDagger ran successfully in {0:.0f}:{1:02.0f} minutes".format((toc - tic) // 60,
                                                                                  (toc - tic) % 60)

@@ -63,9 +63,10 @@ def tag_regions(stokes_cube,
             wnd = band_avg[ly:uy, lx:ux].flatten()
             binned_stats[y, x] = np.std(wnd)
     percentile_stat = np.nanpercentile(binned_stats, global_stat_percentile)
+    segment_cutoff = percentile_stat * sigma
     print>>log, "Computed regional statistics (global std of {0:.2f} mJy)".format(percentile_stat * 1.0e3)
     tagged_regions = []
-    for (y, x) in np.argwhere(binned_stats > percentile_stat * sigma):
+    for (y, x) in np.argwhere(binned_stats > segment_cutoff):
         det = binned_stats[y, x] / float(percentile_stat)
         reg_name = "reg[{0:d},{1:d}]".format(x, y)
         tagged_regions.append(BoundingBox(bin_lower[x], bin_upper[x], 

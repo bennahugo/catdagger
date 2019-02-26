@@ -35,7 +35,8 @@ def tag_lsm(lsm,
             hdu_id=0,
             regionsfn = "dE.srcs.reg",
             taggedlsm_fn="tagged.catalog.lsm.html",
-            de_tag="dE"):
+            de_tag="dE",
+            store_only_dEs=False):
     with fits.open(stokes_cube) as img:
         cube = img[hdu_id].data
         hdr = img[hdu_id].header
@@ -51,7 +52,7 @@ def tag_lsm(lsm,
             encircled_sources = filter(lambda s: s in reg, mod.sources)
             encircled_fluxes = [s.flux.I for s in encircled_sources]
             for s in encircled_sources:
-                s.setTag("dE", True)
+                s.setTag(de_tag, True)
                 s.setTag("cluster", reg.name) #recluster sources
             if len(encircled_fluxes) > 0:
                 argmax = np.argmax(encircled_fluxes)
@@ -66,6 +67,12 @@ def tag_lsm(lsm,
                         "{%.2f mJy}" % (s.flux.I * 1.0e3)))
                 print>>log, "\t - {0:s} tagged as '{1:s}' cluster lead".format(s.name, de_tag)
         print>>log, "Writing tagged leads to DS9 regions file {0:s}".format(regionsfn)
+    if store_only_dEs:
+        print>>log, "Removing direction independent components from catalog before writing LSM"
+        ncomp_di_dies = len(mod.sources)
+        mod.sources = filter(lambda s: de_tag in s.getTagNames(), mod.sources)
+        ncomp_des = len(mod.sources)
+        print>>log, "\t - Removed {0:d} direction independent sources from catalog".format(ncomp_di_dies - ncomp_des)
     print>>log, "Writing tagged LSM to {0:s}".format(taggedlsm_fn)
     mod.save(taggedlsm_fn)
 
