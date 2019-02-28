@@ -24,6 +24,14 @@ usage: CATDagger - an automatic differential gain tagger (C) SARAO, Benjamin Hug
        [--ds9-tag-reg-file DS9_TAG_REG_FILE] [-s SIGMA]
        [--tile-size TILE_SIZE] [--global-rms-percentile GLOBAL_RMS_PERCENTILE]
        [--de-tag-name DE_TAG_NAME]
+       [--min-distance-from-tracking-centre MIN_DISTANCE_FROM_TRACKING_CENTRE]
+       [--add-custom-exclusion-zone ADD_CUSTOM_EXCLUSION_ZONE [ADD_CUSTOM_EXCLUSION_ZONE ...]]
+       [--max-region-right-skewness MAX_REGION_RIGHT_SKEWNESS]
+       [--psf-image PSF_IMAGE]
+       [--remove-tagged-dE-components-from-model-images REMOVE_TAGGED_DE_COMPONENTS_FROM_MODEL_IMAGES]
+       [--only-dEs-in-lsm]
+       [--max-positive-to-negative-flux MAX_POSITIVE_TO_NEGATIVE_FLUX]
+       [--max-region-abs-skewness MAX_REGION_ABS_SKEWNESS]
        noise_map
 
 positional arguments:
@@ -54,3 +62,44 @@ optional arguments:
                         calculations
   --de-tag-name DE_TAG_NAME
                         Tag name to use for tagged sources in tigger LSM
+  --min-distance-from-tracking-centre MIN_DISTANCE_FROM_TRACKING_CENTRE
+                        Cutoff distance from phase centre in which no tags be
+                        raised.This can be used to effectively exclude the
+                        FWHM of an parabolic reflector-based interferometer.
+  --add-custom-exclusion-zone ADD_CUSTOM_EXCLUSION_ZONE [ADD_CUSTOM_EXCLUSION_ZONE ...]
+                        Add manual exclusion zone to which no dE tags shall be
+                        added. Expects a tripple of centre X, Y pixel and
+                        radius.
+  --max-region-right-skewness MAX_REGION_RIGHT_SKEWNESS
+                        The maximum tolerance for right skewness of a pixel
+                        distribution within a region.A large value (tailed
+                        distribution) indicates significant uncleaned flux
+                        remaining in the residual. This can be used to
+                        effectively control detection sensitivity to uncleaned
+                        extended emission, but should be set to 0 if residuals
+                        other than stokes I are used
+  --psf-image PSF_IMAGE
+                        PSF image from which BPA, BMAJ and BMIN may be
+                        extracted
+  --remove-tagged-dE-components-from-model-images REMOVE_TAGGED_DE_COMPONENTS_FROM_MODEL_IMAGES
+                        Blank out model images within resolution of tagged LSM
+                        components. Expects list of model FITS files. This
+                        option is useful for hybrid DFT-CLEAN component
+                        modelling as onlyextended / faint clean components
+                        contributes to model.
+  --only-dEs-in-lsm     Only store dE tagged sources in lsm. This option is
+                        useful for hybrid DFT-CLEAN component modelling, as
+                        only bright compact gaussian emission contributes to
+                        dE solutions
+  --max-positive-to-negative-flux MAX_POSITIVE_TO_NEGATIVE_FLUX
+                        The maximum tolerance for the ratio of positive to
+                        negative flux. Only to be used with stokes I
+  --max-region-abs-skewness MAX_REGION_ABS_SKEWNESS
+                        The maximum tolerance for absolute skewness of a pixel
+                        distribution within a region.A large value (tailed
+                        distribution) indicates significant uncleaned flux
+                        remaining in the residual. This can be used to
+                        effectively control detection sensitivity to uncleaned
+                        extended emission, but should be set to 0 if residuals
+                        other than stokes Q,U or V are used
+
