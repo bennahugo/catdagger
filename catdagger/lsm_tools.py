@@ -75,4 +75,4 @@ def tag_lsm(lsm,
         print>>log, "\t - Removed {0:d} direction independent sources from catalog".format(ncomp_di_dies - ncomp_des)
     print>>log, "Writing tagged LSM to {0:s}".format(taggedlsm_fn)
     mod.save(taggedlsm_fn)
-
+    return mod.sources

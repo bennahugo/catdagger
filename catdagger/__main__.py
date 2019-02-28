@@ -22,10 +22,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import argparse
+import os
 
 from catdagger import logger
 from catdagger.tiled_tesselator import tag_regions
 from catdagger.lsm_tools import tag_lsm
+from catdagger.fits_tools import blank_components
 import numpy as np
 import logging
 logging.getLogger("matplotlib").disabled=True
@@ -33,8 +35,6 @@ logger.setGlobalVerbosity(["matplotlib=40"])
 log = logger.getLogger("__main__")
 
 def exclusion_zone(val):
-    if not isinstance(val, str):
-        raise argparse.ArgumentTypeError("Exclusion zone must be of type string")
     valtup = val.split(",") if isinstance(val, str) else tuple(val) if isinstance(val, list) else []
 
     if len(valtup) != 3:
@@ -45,10 +45,18 @@ def exclusion_zone(val):
         raise argparse.ArgumentTypeError("Exclusion zone must be a tripple like (int, int, float)")
     return (cx, cy, exclrad)
 
+def file_list(val):
+    vallist = val.split(",") if isinstance(val,str) else val if isinstance(val, list) else []
+    if len(vallist) == 0:
+        raise argparse.ArgumentTypeError("File list cannot be empty")
+    if not all([os.path.exists(v) for v in vallist]):
+        raise argparse.ArgumentTypeError("One or more files specified as input cannot be located")
+    return vallist
+
 def main():
     parser = argparse.ArgumentParser("CATDagger - an automatic differential gain tagger (C) SARAO, Benjamin Hugo 2019")
     parser.add_argument("noise_map",
-                        type=str,
+                        type=file_list,
                         help="Residual / noise FITS map to use for estimating local RMS")
     parser.add_argument("--stokes",
                         type=str,
@@ -59,7 +67,7 @@ def main():
                         default=3,
                         help="Minimum number of tiles per region. Regions with fewer tiles will not be tagged as dE")
     parser.add_argument("--input-lsm",
-                        type=str,
+                        type=file_list,
                         default=None,
                         help="Tigger LSM to recluster and tag. If this is not specified only DS9 regions will be written out")
     parser.add_argument("--ds9-reg-file",
@@ -106,10 +114,15 @@ def main():
                              "in the residual. This can be used to effectively control detection sensitivity "
                              "to uncleaned extended emission, but should be set to 0 if residuals other than "
                              "stokes I are used")
-    parser.add_argument("--remove-tagged-dE-regions-from-model-images",
-                        type=list,
-                        help="Blank out model images within dE regions. Expect list of model FITS files. "
-                             "This option is useful for hybrid DFT-CLEAN component modelling.")
+    parser.add_argument("--psf-image",
+                        type=file_list,
+                        help="PSF image from which BPA, BMAJ and BMIN may be extracted")
+    parser.add_argument("--remove-tagged-dE-components-from-model-images",
+                        type=file_list,
+                        help="Blank out model images within resolution of tagged LSM components. "
+                             "Expects list of model FITS files. "
+                             "This option is useful for hybrid DFT-CLEAN component modelling as only"
+                             "extended / faint clean components contributes to model.")
     parser.add_argument("--only-dEs-in-lsm",
                         action="store_true",
                         help="Only store dE tagged sources in lsm. This option is useful for hybrid "
@@ -132,7 +145,7 @@ def main():
     tic = int(time.time())
     exclusion_zones = [exclz for exclz in args.add_custom_exclusion_zone] \
         if args.add_custom_exclusion_zone is not None else []
-    tagged_regions = tag_regions(args.noise_map,
+    tagged_regions = tag_regions(args.noise_map[0],
                                  regionsfn = args.ds9_reg_file,
                                  sigma = args.sigma,
                                  block_size = args.tile_size,
@@ -146,14 +159,21 @@ def main():
                                  max_abs_skewness=args.max_region_abs_skewness,
                                  max_positive_to_negative_flux=args.max_positive_to_negative_flux)
     if args.input_lsm is not None:
-        tag_lsm(args.input_lsm,
-                args.noise_map,
-                tagged_regions,
-                hdu_id=0,
-                regionsfn = args.ds9_tag_reg_file,
-                taggedlsm_fn=args.input_lsm + ".de_tagged.lsm.html",
-                de_tag=args.de_tag_name,
-                store_only_dEs=args.only_dEs_in_lsm)
+        sources = tag_lsm(args.input_lsm[0],
+                          args.noise_map[0],
+                          tagged_regions,
+                          hdu_id=0,
+                          regionsfn = args.ds9_tag_reg_file,
+                          taggedlsm_fn=args.input_lsm[0] + ".de_tagged.lsm.html",
+                          de_tag=args.de_tag_name,
+                          store_only_dEs=args.only_dEs_in_lsm)
+        for mod in args.remove_tagged_dE_components_from_model_images:
+            blank_components(mod,
+                             args.noise_map[0],
+                             args.psf_image[0],
+                             sources,
+                             hdu_id=0,
+                             use_stokes=args.stokes)
     toc = int(time.time())
     print>>log, "CATDagger ran successfully in {0:.0f}:{1:02.0f} minutes".format((toc - tic) // 60,
                                                                                  (toc - tic) % 60)

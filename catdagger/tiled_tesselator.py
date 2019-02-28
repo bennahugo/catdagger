@@ -32,7 +32,8 @@ def tag_regions(stokes_cube,
 
         Method to tag regions with higher than sigma * percentile noise
     """
-    w, band_avg = read_stokes_slice(stokes_cube, hdu_id, use_stokes, average_channels=True)
+    fn = stokes_cube
+    w, hdr, band_avg = read_stokes_slice(stokes_cube, hdu_id, use_stokes, average_channels=True)
     bin_lower = np.arange(0, band_avg.shape[0], block_size)
     bin_upper = np.clip(bin_lower + block_size, 0, band_avg.shape[0])
     assert bin_lower.shape == bin_upper.shape
@@ -72,7 +73,7 @@ def tag_regions(stokes_cube,
                                 tagged_regions)
     if len(exclusion_zones) == 0: 
         print>>log, "\t - No exclusion zones"
-    print>>log, "Merging regions" 
+    print>>log, "Merging regions:" 
     prev_tagged_regions = copy.deepcopy(tagged_regions)
     tagged_regions = [i for i in merge_regions(tagged_regions,  
                                                exclusion_zones=exclusion_zones)]
@@ -111,5 +112,5 @@ def tag_regions(stokes_cube,
         for r in tagged_regions:
             print>>log, "\t - {0:s}".format(str(r))
     else:
-        print>>log, "No regions met cutoff criterion. No dE tags shall be raised."
+        print>>log, "\t - No regions met cutoff criteria. No dE tags shall be raised."
     return tagged_regions
