@@ -35,7 +35,7 @@ def readme():
     return desc
 
 setup(name='catdagger',
-      version='0.2.0',
+      version='0.2.1',
       description='An automatic differential gain catalog tagger',
       long_description=readme(),
       url='https://github.com/bennahugo/catdagger',

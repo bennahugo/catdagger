@@ -167,13 +167,14 @@ def main():
                           taggedlsm_fn=args.input_lsm[0] + ".de_tagged.lsm.html",
                           de_tag=args.de_tag_name,
                           store_only_dEs=args.only_dEs_in_lsm)
-        for mod in args.remove_tagged_dE_components_from_model_images:
-            blank_components(mod,
-                             args.noise_map[0],
-                             args.psf_image[0],
-                             sources,
-                             hdu_id=0,
-                             use_stokes=args.stokes)
+        if args.remove_tagged_dE_components_from_model_images is not None:
+            for mod in args.remove_tagged_dE_components_from_model_images:
+                blank_components(mod,
+                                 args.noise_map[0],
+                                 args.psf_image[0],
+                                 sources,
+                                 hdu_id=0,
+                                 use_stokes=args.stokes)
     toc = int(time.time())
     print>>log, "CATDagger ran successfully in {0:.0f}:{1:02.0f} minutes".format((toc - tic) // 60,
                                                                                  (toc - tic) % 60)

@@ -119,7 +119,7 @@ def save_stokes_slice(fn,
         cube = img[hdu_id].data
         hdr = img[hdu_id].header
         w = wcs.WCS(hdr)
-        backup and img.writeto(stokes_cube + ".orig.fits")
+        backup and img.writeto(stokes_cube + ".orig.fits", overwrite=True)
     types = {hdr["CTYPE{0:d}".format(ax + 1)]: (ax + 1) for ax in range(hdr["NAXIS"])}
     if set(types.keys()) != set(["FREQ", "STOKES", "RA---SIN", "DEC--SIN"]):
         raise TypeError("FITS must have FREQ, STOKES and RA and DEC ---SIN axes")
